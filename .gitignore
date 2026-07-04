@@ -1,0 +1,39 @@
+# ==========================================
+# 1. CRITICAL: Security & Environment Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+deploy/**/.env
+deploy/**/.env.*
+
+# ==========================================
+# 2. Python Virtual Environments & Packages
+# ==========================================
+.venv/
+venv/
+ENV/
+env/
+python-local-env/
+.Python
+*.pyc
+*.pyo
+*.pyd
+**/__pycache__/
+
+# ==========================================
+# 3. Jupyter Notebooks (Internal/Cache)
+# ==========================================
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# 4. OS & IDE Specific (Optional but safe)
+# ==========================================
+.DS_Store
+Thmbs.db
+.vscode/
+.idea/
