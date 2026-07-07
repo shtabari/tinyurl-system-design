@@ -1,0 +1,38 @@
+# deploy/compose/docker-compose.yml
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: tinyurl
+      POSTGRES_PASSWORD: tinyurl
+      POSTGRES_DB: tinyurl
+    ports:
+      - "5432:5432"          # host:container — lets you psql from your Mac for debugging
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready checks the server accepts connections, not just that the process booted
+      test: ["CMD-SHELL", "pg_isready -U tinyurl -d tinyurl"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s       # grace window before failures count, during first init
+
+  api:
+    build:
+      context: ../../services/api      # Dockerfile lives here (Task 2b)
+      dockerfile: Dockerfile
+    environment:
+      # THE EKS-readiness gate: host is the SERVICE NAME 'postgres', never 'localhost'.
+      DATABASE_URL: postgresql+asyncpg://tinyurl:tinyurl@postgres:5432/tinyurl
+      BASE_URL: http://localhost:8000
+      # DEFAULT_TTL_SECONDS: 2592000   # optional; config.py has a default
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy     # ← THIS is the line that matters. Explain it back to me.
+    restart: unless-stopped
+
+volumes:
+  pgdata:

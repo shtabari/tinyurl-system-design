@@ -27,3 +27,4 @@ def get_settings() -> Settings:
     # Deferred + cached: env is read once, on first *call*, not on import.
     # Swappable in tests via app.dependency_overrides[get_settings].
     return Settings()  # type: ignore[call-arg]
+

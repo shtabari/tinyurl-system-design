@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Response, status
+# services/api/app/api/health.py
+from fastapi import APIRouter
 
-router = APIRouter()
+router = APIRouter(tags=["health"])
 
-@router.get("/healthz", tags=["healthz"])
-async def health_check():
-    return Response(status_code=status.HTTP_200_OK)
+
+@router.get("/healthz")
+async def health_check() -> dict[str, str]:
+    """Liveness probe — always 200 if the process is up. No dependency checks."""
+    return {"status": "ok"}
