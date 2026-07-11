@@ -1,26 +1,19 @@
-# # services/api/app/api/health.py
-# from fastapi import APIRouter
-
-# router = APIRouter(tags=["health"])
-
-
-# @router.get("/healthz")
-# async def health_check() -> dict[str, str]:
-#     """Liveness probe — always 200 if the process is up. No dependency checks."""
-#     return {"status": "ok"}
-
-
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schema import ShortenRequest, ShortenResponse
-from app.config import get_settings, Settings
+from app.config import Settings, get_settings
 from app.db.session import get_session
 from app.repositories.url_repository import PostgresUrlRepository
-from app.services.url_service import create_url
+from app.services.exceptions import UrlExpiredError, UrlNotFoundError
+from app.services.url_service import create_url, resolve_code
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -28,11 +21,19 @@ def get_repo(session: AsyncSession = Depends(get_session)) -> PostgresUrlReposit
     return PostgresUrlRepository(session)
 
 
-
 @router.get("/healthz", tags=["ops"])
-async def health_check() -> dict[str, str]:
+async def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
+
+@router.get("/readyz", tags=["ops"])
+async def readyz(session: AsyncSession = Depends(get_session)) -> JSONResponse:
+    try:
+        await session.execute(text("SELECT 1"))
+        return JSONResponse({"status": "ok"})
+    except Exception:
+        logger.exception("readyz DB ping failed")
+        return JSONResponse({"status": "db_unavailable"}, status_code=503)
 
 
 @router.post("/api/urls", response_model=ShortenResponse, status_code=status.HTTP_201_CREATED, tags=["urls"])
@@ -45,8 +46,19 @@ async def shorten_url(
         short_code = await create_url(str(payload.long_url), payload.expires_at, repo)
     except RuntimeError:
         raise HTTPException(status_code=500, detail="Could not generate unique short code")
-
     return ShortenResponse(
         short_code=short_code,
         short_url=f"{settings.base_url}/{short_code}",
     )
+
+
+@router.get("/{short_code}", tags=["urls"])
+async def redirect(
+    short_code: str,
+    repo: PostgresUrlRepository = Depends(get_repo),
+) -> RedirectResponse:
+    try:
+        long_url = await resolve_code(short_code, repo)
+    except (UrlNotFoundError, UrlExpiredError):
+        raise HTTPException(status_code=404)
+    return RedirectResponse(url=long_url, status_code=302)

@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.api.routers import router
 from app.config import get_settings
+from app.logging_config import configure_logging
+from app.middleware import RequestContextMiddleware
 
 
 @asynccontextmanager
@@ -16,7 +18,9 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    configure_logging()
     app = FastAPI(title="TinyURL API", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(RequestContextMiddleware)
     app.include_router(router)
     return app
 

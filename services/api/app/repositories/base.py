@@ -1,5 +1,11 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+from typing import NamedTuple
+
+
+class UrlRecord(NamedTuple):
+    long_url: str
+    expires_at: datetime | None
 
 
 class AbstractUrlRepository(ABC):
@@ -10,4 +16,8 @@ class AbstractUrlRepository(ABC):
         long_url: str,
         expires_at: datetime | None,
     ) -> bool:
-        pass
+        ...
+
+    @abstractmethod
+    async def get_by_code(self, short_code: str) -> UrlRecord | None:
+        ...
