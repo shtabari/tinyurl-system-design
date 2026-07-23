@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.api.routers import router
@@ -13,9 +14,11 @@ from app.middleware import RequestContextMiddleware
 async def lifespan(app: FastAPI):
     settings = get_settings()
     app.state.engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    app.state.redis = Redis.from_url(settings.redis_url, decode_responses=True)
     yield
-    await app.state.engine.dispose()
 
+    await app.state.redis.aclose()
+    await app.state.engine.dispose()
 
 def create_app() -> FastAPI:
     configure_logging()

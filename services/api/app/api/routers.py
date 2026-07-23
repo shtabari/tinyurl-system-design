@@ -5,11 +5,17 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis
+
+from app.cache.redis import get_redis
 
 from app.api.schema import ShortenRequest, ShortenResponse
 from app.config import Settings, get_settings
 from app.db.session import get_session
 from app.repositories.url_repository import PostgresUrlRepository
+from app.repositories.caching_url_repository import CachingUrlRepository
+from app.repositories.base import AbstractUrlRepository
+    
 from app.services.exceptions import UrlExpiredError, UrlNotFoundError
 from app.services.url_service import create_url, resolve_code
 
@@ -17,9 +23,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def get_repo(session: AsyncSession = Depends(get_session)) -> PostgresUrlRepository:
-    return PostgresUrlRepository(session)
-
+def get_repo(
+    session: AsyncSession = Depends(get_session),
+    redis: Redis = Depends(get_redis),
+    settings: Settings = Depends(get_settings),
+) -> AbstractUrlRepository:
+    postgres_repo = PostgresUrlRepository(session)
+    return CachingUrlRepository(
+        inner=postgres_repo,
+        redis=redis,
+        default_ttl_seconds=settings.default_ttl_seconds,
+    )
+ 
 
 @router.get("/healthz", tags=["ops"])
 async def healthz() -> dict[str, str]:
@@ -39,7 +54,7 @@ async def readyz(session: AsyncSession = Depends(get_session)) -> JSONResponse:
 @router.post("/api/urls", response_model=ShortenResponse, status_code=status.HTTP_201_CREATED, tags=["urls"])
 async def shorten_url(
     payload: ShortenRequest,
-    repo: PostgresUrlRepository = Depends(get_repo),
+    repo: AbstractUrlRepository = Depends(get_repo),
     settings: Settings = Depends(get_settings),
 ) -> ShortenResponse:
     try:
@@ -55,7 +70,7 @@ async def shorten_url(
 @router.get("/{short_code}", tags=["urls"])
 async def redirect(
     short_code: str,
-    repo: PostgresUrlRepository = Depends(get_repo),
+    repo: AbstractUrlRepository = Depends(get_repo),
 ) -> RedirectResponse:
     try:
         long_url = await resolve_code(short_code, repo)

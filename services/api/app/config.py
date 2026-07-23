@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # Default link TTL. Has a sane default so a bare run doesn't require setting it,
     # but is still env-overridable. 30 days in seconds.
     default_ttl_seconds: int = 60 * 60 * 24 * 30
-
+    redis_url: str
 
 @lru_cache
 def get_settings() -> Settings:
